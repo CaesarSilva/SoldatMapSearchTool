@@ -1,0 +1,105 @@
+<html>
+<head>
+  <title>Insert tags</title>
+  <script src='./sql.js/sql-wasm.js'></script>
+  <script>
+  var db;
+  var loadedmap = -1;
+    config = {
+      locateFile: filename => `./sql.js/${filename}`
+    }
+    initSqlJs(config).then(function(SQL){
+    const xhr = new XMLHttpRequest();
+// For example: https://github.com/lerocha/chinook-database/raw/master/ChinookDatabase/DataSources/Chinook_Sqlite.sqlite
+   xhr.open('GET', './mapdb.db', true);
+   xhr.responseType = 'arraybuffer';
+
+   xhr.onload = e => {
+   const uInt8Array = new Uint8Array(xhr.response);
+   /*const*/ db = new SQL.Database(uInt8Array);
+   //const contents = db.exec("SELECT * FROM Maps");
+  // contents is now [{columns:['col1','col2',...], values:[[first row], [second row], ...]}]
+  /* const stmt = db.prepare("SELECT * FROM Maps WHERE Id BETWEEN $start AND $end ORDER BY Name LIMIT 50");
+      stmt.getAsObject({$start:1, $end:1}); // {col1:1, col2:111}
+      // Bind new values
+      stmt.bind({$start:1, $end:8});
+      while(stmt.step()) { //
+        const row = stmt.getAsObject();
+        console.log('Here is a row: ' + JSON.stringify(row));
+
+      }*/
+};
+xhr.send();
+});
+function onloadmap(){
+  console.log("onloadmap");
+  const mapname = document.getElementById("mapsname").value;
+  console.log("Name:\""+mapname+"")
+  const stmt = db.prepare("SELECT Id FROM Maps WHERE Name = $mapname");
+  stmt.bind({$mapname: mapname});
+  if(stmt.step()){
+    const row = stmt.getAsObject();
+    document.getElementById("mapid").innerHTML = ""+row.Id;
+    loadedmap = row.Id;
+  }else{
+    document.getElementById("mapid").innerHTML = "map not found";
+  }
+}
+function onloadtags(){
+  const tagstext = document.getElementById("Tags").value;
+  const tags = tagstext.split(";");
+  console.log(tags);
+  let outputnewtags = "";
+  const existingtags = [];
+  tags.forEach((tag)=>{
+    console.log(tag);
+    const stmt = db.prepare("SELECT * FROM MapTags WHERE Name = $tag");
+    stmt.bind({$tag : tag});
+    if(stmt.step()){
+      const row = stmt.getAsObject();
+      existingtags.push(row.Id);
+    }else{
+      outputnewtags += "INSERT OR IGNORE INTO MapTags (Name) VALUES ('"+tag.replace("'","''")+"');\n"
+    }
+  });
+  let outputnewassoc = "";
+  existingtags.forEach((tagid)=>{
+    outputnewassoc += "INSERT OR IGNORE INTO MapTags_Map (TagId, MapId) VALUES ("+tagid+", "+loadedmap+");\n";
+  });
+
+  document.getElementById("newtagsTA").value = outputnewtags;
+  document.getElementById("assocTA").value = outputnewassoc;
+}
+  </script>
+</head>
+<body>
+  <table>
+    <tr>
+      <td>
+        Map Name:
+      </td>
+      <td>
+        <input type="text" id="mapsname">
+        <button type="button" onclick="onloadmap()">Load Map</button>
+      </td>
+      <td>
+        Map id: <div style="display:inline-block" id="mapid"></div>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        Tags(separated by ;):
+      </td>
+      <td>
+        <input type="text" id="Tags">
+        <button type="button" onclick="onloadtags()">Load Tags</button>
+      </td>
+    </tr>
+  </table>
+  SQL to create new tags: <BR>
+  <textarea id="newtagsTA" style="width:400;height:200;"></textarea>
+  <BR>SQL to associate tags to the map:<BR>
+  <textarea id="assocTA" style="width:400;height:200;"></textarea>
+</body>
+
+</html>

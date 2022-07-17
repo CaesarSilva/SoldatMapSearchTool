@@ -37,6 +37,27 @@ body {
   width : 100%;
   text-align: center;
 }
+#dropdownC{
+  z-index: 1;
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  background-color: white;
+  display: none;
+}
+#creatornamearea{
+  display:inline-block;
+}
+.selecteditem{
+  background-color : rosybrown;
+  padding: 3px;
+  margin: 3px 3px;
+  text-align: center;
+    text-decoration: none;
+  display: inline-block;
+  border-radius: 5px;
+  cursor: pointer;
+}
 .button {
   background-color: #4CAF50; /* Green */
   border: none;
@@ -47,7 +68,7 @@ body {
   text-decoration: none;
   display: inline-block;
   font-size: 16px;
-  transition-duration: 0.5s;
+  transition-duration: 0.4s;
   cursor: pointer;
 }
 .button:hover {
@@ -57,11 +78,15 @@ body {
 .button:active {
   background-color: orange; /* Green */
   color: blue;
-  border: 3px solid #BCBC8F;
+  border: 2px solid #BCBC8F;
+  padding: 3px 3px;
 }
 </style>
 <script>
+  var selectedCreator;
+  var creatorSelected = false;
   var db;
+  const selectedTags = [];
     config = {
       locateFile: filename => `./sql.js/${filename}`
     }
@@ -91,15 +116,22 @@ xhr.send();
 });
 
 function onbtclick(){
+  const rrow = document.getElementsByClassName("maprow");
+  while(rrow[0]){
+    rrow[0].parentNode.removeChild(rrow[0]);
+  }
   console.log("ontbtclick");
   const name = "%"+document.getElementById("Name").value+"%";
-  const stmt = db.prepare("SELECT * FROM Maps WHERE Name LIKE $name  ORDER BY Name LIMIT 50");
-  stmt.bind({$name: name});
+  const Gamemode = Number(document.getElementById("Gamemode").value);
+  const OficialGm = Number(document.getElementById("OficialGm").value);
+  const stmt = db.prepare("SELECT * FROM Maps WHERE Gamemode = $gamemode AND OficialGm = $oficialGm AND Name LIKE $name "+insertCreatorSql()+" ORDER BY Name LIMIT 50");
+  stmt.bind({$name: name , $gamemode: Gamemode, $oficialGm: OficialGm});
   while(stmt.step()) { //
     const row = stmt.getAsObject();
     console.log('Here is a row: ' + JSON.stringify(row));
     const tableref = document.getElementById("paginationtb");
     const tbrow = tableref.insertRow();
+    tbrow.classList.add("maprow");
     const cell1= tbrow.insertCell();
     const text1= document.createTextNode(row.Name);
     cell1.appendChild(text1);
@@ -111,6 +143,74 @@ function onbtclick(){
     const cell2= tbrow.insertCell();
     const text2= document.createTextNode(row2.Name);
     cell2.appendChild(text2);
+  }
+}
+function oncreatorbtclick(){
+
+  //document.getElementById("dropdownC").style.display = "block";
+  const creatorname = document.getElementById("Creator").value;
+  //const stmt1 = db.prepare("SELECT * FROM MapCreators WHERE Name LIKE $name");
+  const stmt1 = db.prepare("SELECT * FROM MapCreators WHERE Name = $name");
+  stmt1.bind({$name: creatorname});
+  if(stmt1.step()){
+    //alert("good");
+    const row = stmt1.getAsObject();
+    sethiddenCreators(true);
+    const textname = document.createTextNode(creatorname);
+    const divname = document.createElement("div");
+    divname.appendChild(textname);
+    divname.classList.add("selecteditem");
+    document.getElementById("creatornamearea").appendChild(divname);
+    divname.onclick = ()=>{onRemoveBtClick()};
+    selectedCreator = row.Id;
+    creatorSelected = true;
+    console.log("id:"+selectedCreator);
+    console.log(row);
+  }else{
+    alert("bad");
+  }
+}
+function onRemoveBtClick(){
+    sethiddenCreators(false);
+    //document.getElementById("creatornamearea")
+    while(document.getElementById("creatornamearea").firstChild){
+      document.getElementById("creatornamearea").removeChild(document.getElementById("creatornamearea").firstChild);
+    }
+    creatorSelected = false;
+
+}
+function sethiddenCreators(hidden){
+  document.getElementById("Creator").hidden = false != hidden;
+  document.getElementById("bt_searchCreator").style.display = hidden ? "none" : "inline" ;
+  document.getElementById("bt_removeCreator").style.display = hidden ? "inline" : "none" ;
+}
+function insertCreatorSql(){
+  if(creatorSelected){
+    return "AND CreatorId="+selectedCreator+" ";
+  }else {
+    return "";
+  }
+}
+function onInsertTag(){
+  const tag = document.getElementById("taginput").value;
+  if(tag != ""){
+    stmt = db.prepare("SELECT * FROM MapTags WHERE Name = $tagname ;");
+    stmt.bind({$tagname : tag});
+    if(stmt.step()){
+      const row = stmt.getAsObject();
+      selectedTags.push(row.Id);
+      const tagdiv = document.createElement("div");
+      tagdiv.innerHTML = tag;
+      tagdiv.classList.add("selecteditem");
+      tagdiv.onclick = ()=>{
+        const rindex = selectedTags.findIndex(element => element = row.Id);
+        if(rindex != -1)
+        selectedTags.splice(rindex,1);
+        document.getElementById("tagsArea").removeChild(tagdiv);
+      };
+      document.getElementById("tagsArea").appendChild(tagdiv);
+
+    }
   }
 }
 </script>
@@ -127,20 +227,80 @@ function onbtclick(){
         </td>
         <td>
           <input id="Name" type="text">
+
+      </tr>
+      <tr>
+</td>
+                <td>
+          Map Creator:
+        </td>
+        <td>
+          <div id="creatornamearea"></div>
+          <input id="Creator" type="text">
+          <button type="button" id="bt_searchCreator" onclick="oncreatorbtclick()" class="button">Search</button>
+          <button style="display:none" id="bt_removeCreator" type="button" onclick="onRemoveBtClick()" class="button">REMOVE</button>
+          <div id="dropdownC">Search results:<BR></div>
         </td>
       </tr>
       <tr>
         <td>
-
+          Oficial Gamemode:
+        </td>
+        <td>
+          <select id="OficialGm">
+            <option value="0"> DM/TM/RM/PM
+            </option>
+            <option value="1" selected="selected"> CTF
+            </option>
+            <option value="2"> HTF
+            </option>
+            <option value="3"> INF
+            </option>
+          </select>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Gamemode:
+        </td>
+        <td>
+          <select id="Gamemode">
+            <option value="0"> Oficial Gamemode
+            </option>
+            <option value="-1" selected="selected"> Climb
+            </option>
+            <option value="-2"> Coop Climb
+            </option>
+            <option value="-3"> M79 Coop Climb
+            </option>
+            <option value="-4"> M79 Climb
+            </option>
+          </select>
         </td>
       </tr>
     </table>
   </div>
   <div id="searchright">
-    sdf
+    <table>
+    <tr>
+      <td>Tag:
+      </td>
+      <td>
+        <input type="text" id="taginput">
+        <button type="button" onclick="onInsertTag()" class="button">Insert tag</button>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        Tags:
+      </td>
+      <td id="tagsArea">
+      </td>
+    </tr>
+    </table>
   </div>
   <div id="searchbtarea">
-     <button type="button" onclick="onbtclick()" class="button">Click Me!</button>
+     <button type="button" onclick="onbtclick()" class="button">Search</button>
   </div>
 </div>
 <div id="Pagination">

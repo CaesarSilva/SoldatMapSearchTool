@@ -120,11 +120,53 @@ function onbtclick(){
   while(rrow[0]){
     rrow[0].parentNode.removeChild(rrow[0]);
   }
-  console.log("ontbtclick");
+  console.log("ontbtclick. length:"+selectedTags.length);
   const name = "%"+document.getElementById("Name").value+"%";
   const Gamemode = Number(document.getElementById("Gamemode").value);
   const OficialGm = Number(document.getElementById("OficialGm").value);
-  const stmt = db.prepare("SELECT * FROM Maps WHERE Gamemode = $gamemode AND OficialGm = $oficialGm AND Name LIKE $name "+insertCreatorSql()+" ORDER BY Name LIMIT 50");
+  let querry = "SELECT * FROM Maps WHERE Gamemode = $gamemode AND OficialGm = $oficialGm AND Name LIKE $name "+insertCreatorSql()+" ORDER BY Name LIMIT 50";
+  if(selectedTags.length > 0){
+    querry =
+      `select
+          t1.id,
+          t1.Name,
+          t1.CreatorId,
+          t1.Timestamp,
+          t1.Description
+      from
+          (
+          select
+              p.Name as Name,
+              p.Id as Id,
+      	p.CreatorId as CreatorId,
+      	p.Timestamp as Timestamp,
+      	p.Description as Description,
+        p.Gamemode as Gamemode,
+        p.OficialGm as OficialGm
+
+          from
+              Maps p inner join MapTags_Map ties
+          on
+              p.id=ties.MapId
+          where
+              ties.TagId in (${selectedTags.join(",")})
+          ) as t1
+      WHERE
+      t1.Gamemode = $gamemode AND t1.OficialGm = $oficialGm AND t1.Name LIKE $name
+      ${insertCreatorSql("t1.")}
+      group by
+          t1.id,
+          t1.name
+      having
+          count(t1.id) = ${selectedTags.length}
+      order by
+          t1.name asc
+      ;
+      `;
+  }
+  console.log(querry);
+  const stmt = db.prepare(querry);
+  console.log(stmt.getSQL());
   stmt.bind({$name: name , $gamemode: Gamemode, $oficialGm: OficialGm});
   while(stmt.step()) { //
     const row = stmt.getAsObject();
@@ -143,6 +185,22 @@ function onbtclick(){
     const cell2= tbrow.insertCell();
     const text2= document.createTextNode(row2.Name);
     cell2.appendChild(text2);
+    const cell3= tbrow.insertCell();
+    cell3.innerHTML = row.Timestamp;
+    const cell4= tbrow.insertCell();
+    const stmt3 = db.prepare("SELECT * FROM MapTags_Map WHERE MapId = $id");
+    stmt3.bind({$id : row.Id});
+    const tagnames = [];
+    while(stmt3.step()){
+      const row3 = stmt3.getAsObject();
+      const stmt4 = db.prepare("SELECT Name FROM MapTags WHERE Id = $id");
+      const row4 = stmt4.getAsObject({$id : row3.TagId});
+      tagnames.push(row4.Name+`(${row3.TagId})`);
+      console.log("row3:"+ JSON.stringify(row4));
+    }
+    cell4.innerHTML = tagnames.join(";");
+
+
   }
 }
 function oncreatorbtclick(){
@@ -184,9 +242,9 @@ function sethiddenCreators(hidden){
   document.getElementById("bt_searchCreator").style.display = hidden ? "none" : "inline" ;
   document.getElementById("bt_removeCreator").style.display = hidden ? "inline" : "none" ;
 }
-function insertCreatorSql(){
+function insertCreatorSql(prefix = ""){
   if(creatorSelected){
-    return "AND CreatorId="+selectedCreator+" ";
+    return "AND "+prefix+"CreatorId="+selectedCreator+" ";
   }else {
     return "";
   }
